@@ -44,8 +44,9 @@ namespace ToDoListAPI.Controllers
             if (todo == null) return NotFound();
             todo.TaskName = updated.TaskName;
             todo.IsCompleted = updated.IsCompleted;
+            todo.Deadline = updated.Deadline;
             await _context.SaveChangesAsync();
-            return NoContent();
+            return Ok(todo);
         }
 
         [HttpDelete("{id}")]
