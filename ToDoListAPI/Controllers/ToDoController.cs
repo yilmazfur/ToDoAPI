@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ToDoListAPI;
+using ToDoListAPI.Services;
 
 namespace ToDoListAPI.Controllers
 {
@@ -9,10 +10,12 @@ namespace ToDoListAPI.Controllers
     public class ToDoController : ControllerBase
     {
         private readonly ToDoContext _context;
+        private readonly OpenAIService _openAIService;
 
-        public ToDoController(ToDoContext context)
+        public ToDoController(ToDoContext context, OpenAIService openAIService)
         {
             _context = context;
+            _openAIService = openAIService;
         }
 
         [HttpGet]
@@ -58,5 +61,21 @@ namespace ToDoListAPI.Controllers
             await _context.SaveChangesAsync();
             return NoContent();
         }
+
+        [HttpPost("OpenAI")]
+        public async Task<IActionResult> GetGPTSuggestion([FromBody] string text)
+        {
+            var response2 = await _openAIService.GetResponseFromAI(text);
+            if (response2 == null) return BadRequest("Could not parse task.");
+            return Ok(response2);
+        }
+
+        [HttpPost("OpenAI/suggest-tasks")]
+        public async Task<ActionResult<TaskSuggestions>> GetTaskSuggestion([FromBody] string text)
+        {
+            var response2 = await _openAIService.GetTaskSuggestions(text);
+            if (response2 == null) return BadRequest("Could not parse task.");
+            return Ok(response2);
+        }        
     }
 }

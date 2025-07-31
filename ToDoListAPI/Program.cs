@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ToDoListAPI;
+using ToDoListAPI.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -10,20 +11,33 @@ builder.Services.AddControllers();
 builder.Services.AddDbContext<ToDoContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Register TaskNlpService with your OpenAI API key
+//builder.Services.AddSingleton(new TaskNlpService("YOUR_OPENAI_API_KEY")); // <-- Replace with your key
+//builder.Services.AddSingleton(new OpenAIService()); // OLD manual set key
+
+// Get OpenAI API key from configuration
+var openAiApiKey = builder.Configuration["OpenAI:ApiKey"];
+if (string.IsNullOrEmpty(openAiApiKey))
+{
+    throw new InvalidOperationException("OpenAI API key is not configured.");
+}
+
+// Register OpenAI service with API key from configuration
+builder.Services.AddSingleton(new OpenAIService(openAiApiKey));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors(builder => builder
-    .WithOrigins("http://localhost:4200") // Angular dev server
+app.UseCors(policy => policy
+    .WithOrigins("http://localhost:4200")
     .AllowAnyMethod()
     .AllowAnyHeader());
 
@@ -34,7 +48,3 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
-
-// InitialCreate migration and database update
-// dotnet ef migrations add InitialCreate
-// dotnet ef database update
