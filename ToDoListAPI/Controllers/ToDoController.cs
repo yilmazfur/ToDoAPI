@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using ToDoListAPI;
+using MediatR;
+using ToDoListAPI.Commands;
+using ToDoListAPI.Queries;
 using ToDoListAPI.Services;
 
 namespace ToDoListAPI.Controllers
@@ -9,73 +10,71 @@ namespace ToDoListAPI.Controllers
     [Route("[controller]")]
     public class ToDoController : ControllerBase
     {
-        private readonly ToDoContext _context;
+        private readonly IMediator _mediator;
         private readonly OpenAIService _openAIService;
 
-        public ToDoController(ToDoContext context, OpenAIService openAIService)
+        public ToDoController(IMediator mediator, OpenAIService openAIService)
         {
-            _context = context;
+            _mediator = mediator;
             _openAIService = openAIService;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ToDo>>> GetAll()
         {
-            return Ok(await _context.ToDos.ToListAsync());
+            var todos = await _mediator.Send(new GetAllTodosQuery());
+            return Ok(todos);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<ToDo>> Get(int id)
         {
-            var todo = await _context.ToDos.FindAsync(id);
+            var todo = await _mediator.Send(new GetTodoByIdQuery(id));
             if (todo == null) return NotFound();
             return Ok(todo);
         }
 
         [HttpPost]
-        public async Task<ActionResult<ToDo>> Create(ToDo todo)
+        public async Task<ActionResult<ToDo>> Create(CreateTodoCommand command)
         {
-            _context.ToDos.Add(todo);
-            await _context.SaveChangesAsync();
+            var todo = await _mediator.Send(command);
             return CreatedAtAction(nameof(Get), new { id = todo.Id }, todo);
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, ToDo updated)
+        public async Task<IActionResult> Update(int id, UpdateTodoCommand command)
         {
-            var todo = await _context.ToDos.FindAsync(id);
+            if (id != command.Id) return BadRequest("Id mismatch");
+
+            var todo = await _mediator.Send(command);
             if (todo == null) return NotFound();
-            todo.TaskName = updated.TaskName;
-            todo.IsCompleted = updated.IsCompleted;
-            todo.Deadline = updated.Deadline;
-            await _context.SaveChangesAsync();
+            
             return Ok(todo);
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
-            var todo = await _context.ToDos.FindAsync(id);
-            if (todo == null) return NotFound();
-            _context.ToDos.Remove(todo);
-            await _context.SaveChangesAsync();
+            var success = await _mediator.Send(new DeleteTodoCommand(id));
+            if (!success) return NotFound();
+            
             return NoContent();
         }
 
         [HttpPost("OpenAI")]
         public async Task<IActionResult> GetGPTSuggestion([FromBody] string text)
         {
-            var response2 = await _openAIService.GetResponseFromAI(text);
-            if (response2 == null) return BadRequest("Could not parse task.");
-            return Ok(response2);
+            var response = await _openAIService.GetResponseFromAI(text);
+            if (response == null) return BadRequest("Could not parse task.");
+            return Ok(response);
         }
 
         [HttpPost("OpenAI/suggest-tasks")]
         public async Task<ActionResult<TaskSuggestions>> GetTaskSuggestion([FromBody] string text)
         {
-            var response2 = await _openAIService.GetTaskSuggestions(text);
-            if (response2 == null) return BadRequest("Could not parse task.");
-            return Ok(response2);
-        }        
+            var response = await _openAIService.GetTaskSuggestions(text);
+            if (response == null) return BadRequest("Could not parse task.");
+            return Ok(response);
+        }
     }
 }

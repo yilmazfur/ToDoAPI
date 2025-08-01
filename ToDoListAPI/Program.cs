@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ToDoListAPI;
 using ToDoListAPI.Services;
+using MediatR;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +26,9 @@ if (string.IsNullOrEmpty(openAiApiKey))
 
 // Register OpenAI service with API key from configuration
 builder.Services.AddSingleton(new OpenAIService(openAiApiKey));
+
+// Register MediatR for Event-Driven Architecture
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
