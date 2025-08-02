@@ -1,0 +1,11 @@
+bin/
+obj/
+.vscode/
+*.user
+*.suo
+*.dbmdl
+*.jfm
+*.log
+.git
+.gitignore
+.env

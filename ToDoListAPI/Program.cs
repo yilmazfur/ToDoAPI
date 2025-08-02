@@ -49,6 +49,26 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ToDoContext>();
+    try
+    {
+        Console.WriteLine("Ensuring database is created...");
+        await dbContext.Database.EnsureCreatedAsync();
+
+        Console.WriteLine("Running database migrations...");
+        await dbContext.Database.MigrateAsync();
+
+        Console.WriteLine("Database setup completed successfully.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error setting up database: {ex.Message}");
+        // Don't throw - let the app continue, it might be a temporary connection issue
+    }
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
