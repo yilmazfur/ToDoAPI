@@ -27,6 +27,20 @@ if (string.IsNullOrEmpty(openAiApiKey))
 // Register OpenAI service with API key from configuration
 builder.Services.AddSingleton(new OpenAIService(openAiApiKey));
 
+// Get Azure Service Bus connection string from configuration
+var serviceBusConnectionString = builder.Configuration.GetConnectionString("AzureServiceBusConnection");
+if (string.IsNullOrEmpty(serviceBusConnectionString))
+{
+    throw new InvalidOperationException("Azure Service Bus connection string is not configured.");
+}
+
+// Register Azure Service Bus service
+builder.Services.AddSingleton(serviceProvider =>
+{
+    var logger = serviceProvider.GetRequiredService<ILogger<AzureServiceBusService>>();
+    return new AzureServiceBusService(serviceBusConnectionString, logger);
+});
+
 // Register MediatR for Event-Driven Architecture
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly()));
 
@@ -51,5 +65,13 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Ensure proper cleanup of Service Bus resources
+var lifetime = app.Services.GetRequiredService<IHostApplicationLifetime>();
+lifetime.ApplicationStopping.Register(async () =>
+{
+    var serviceBusService = app.Services.GetRequiredService<AzureServiceBusService>();
+    await serviceBusService.DisposeAsync();
+});
 
 app.Run();
