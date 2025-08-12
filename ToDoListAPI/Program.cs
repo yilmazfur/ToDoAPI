@@ -3,11 +3,18 @@ using ToDoListAPI;
 using ToDoListAPI.Services;
 using MediatR;
 using System.Reflection;
+using Azure.Identity;
+using Azure.Security.KeyVault.Secrets;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
+
+var keyVaultUri = builder.Configuration["KeyVault:VaultUri"];
+var secretClient = new SecretClient(new Uri(keyVaultUri), new DefaultAzureCredential());
+builder.Services.AddSingleton(secretClient);
 
 // Register ToDoContext with SQL Server database.
 builder.Services.AddDbContext<ToDoContext>(options =>
@@ -17,22 +24,65 @@ builder.Services.AddDbContext<ToDoContext>(options =>
 //builder.Services.AddSingleton(new TaskNlpService("YOUR_OPENAI_API_KEY")); // <-- Replace with your key
 //builder.Services.AddSingleton(new OpenAIService()); // OLD manual set key
 
-// Get OpenAI API key from configuration
-var openAiApiKey = builder.Configuration["OpenAI:ApiKey"];
-if (string.IsNullOrEmpty(openAiApiKey))
+// Get OpenAI API key from configuration -- from local this is old way
+//var openAiApiKey = builder.Configuration["OpenAI:ApiKey"];
+//if (string.IsNullOrEmpty(openAiApiKey))
+//{
+//    throw new InvalidOperationException("OpenAI API key is not configured.");
+//}
+
+// Get OpenAI API key from Azure Key Vault
+string openAiApiKey;
+try
 {
-    throw new InvalidOperationException("OpenAI API key is not configured.");
+    Console.WriteLine("Retrieving OpenAI API key from Azure Key Vault...");
+    var openAiKeyResponse = await secretClient.GetSecretAsync("OpenAIApiKey");
+    openAiApiKey = openAiKeyResponse.Value.Value;
+    Console.WriteLine("Successfully retrieved OpenAI API key from Key Vault.");
 }
+catch (Exception ex)
+{
+    Console.WriteLine($"Failed to retrieve OpenAI API key from Key Vault: {ex.Message}");
+    // Fallback to configuration
+    openAiApiKey = builder.Configuration["OpenAI:ApiKey"];
+    if (string.IsNullOrEmpty(openAiApiKey))
+    {
+        throw new InvalidOperationException("OpenAI API key is not available from Key Vault or configuration.");
+    }
+    Console.WriteLine("Using OpenAI API key from configuration as fallback.");
+}
+
 
 // Register OpenAI service with API key from configuration
 builder.Services.AddSingleton(new OpenAIService(openAiApiKey));
 
 // Get Azure Service Bus connection string from configuration
-var serviceBusConnectionString = builder.Configuration.GetConnectionString("AzureServiceBusConnection");
-if (string.IsNullOrEmpty(serviceBusConnectionString))
+//var serviceBusConnectionString = builder.Configuration.GetConnectionString("AzureServiceBusConnection");
+//if (string.IsNullOrEmpty(serviceBusConnectionString))
+//{
+//    throw new InvalidOperationException("Azure Service Bus connection string is not configured.");
+//}
+
+string serviceBusConnectionString;
+try
 {
-    throw new InvalidOperationException("Azure Service Bus connection string is not configured.");
+    Console.WriteLine("Retrieving ServiceBusConnection from Azure Key Vault...");
+    var serviceBusConnectionResponse = await secretClient.GetSecretAsync("AzureServiceBusConnection");
+    serviceBusConnectionString = serviceBusConnectionResponse.Value.Value;
+    Console.WriteLine("Successfully retrieved ServiceBusConnection from Key Vault.");
 }
+catch (Exception ex)
+{
+    Console.WriteLine($"Failed to retrieve ServiceBusConnection from Key Vault: {ex.Message}");
+    // Fallback to configuration
+    serviceBusConnectionString = builder.Configuration["ConnectionStrings:AzureServiceBusConnection"];
+    if (string.IsNullOrEmpty(serviceBusConnectionString))
+    {
+        throw new InvalidOperationException("ServiceBusConnection is not available from Key Vault or configuration.");
+    }
+    Console.WriteLine("Using ServiceBusConnection from configuration as fallback.");
+}
+
 
 // Register Azure Service Bus service
 builder.Services.AddSingleton(serviceProvider =>
